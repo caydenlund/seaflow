@@ -1,0 +1,13 @@
+[package]
+name = "sea-lex"
+version = "0.1.0"
+edition = "2021"
+authors = ["Cayden Lund <caydenlund@gmail.com>"]
+description = "SeaFlow lexer component"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/caydenlund/seaflow.git"
+readme = "README.md"
+keywords = ["compiler", "ir", "sea-of-nodes", "lexer"]
+categories = ["compilers"]
+
+[dependencies]

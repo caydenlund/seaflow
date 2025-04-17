@@ -1,6 +1,26 @@
+[workspace]
+members = [
+    "sea-lex",
+    "sea-parse",
+    "sea-type",
+    "sea-ir",
+    "sea-elf",
+    "sea-asm",
+    "sea-opt",
+]
+resolver = "2"
+
 [package]
 name = "seaflow"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+authors = ["Cayden Lund <caydenlund@gmail.com>"]
+description = "A modular sea of nodes IR and compiler toolkit"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/caydenlund/seaflow.git"
+readme = "README.md"
+keywords = ["compiler", "ir", "sea-of-nodes", "optimization"]
+categories = ["compilers", "development-tools::build-utils"]
+publish = false
 
 [dependencies]

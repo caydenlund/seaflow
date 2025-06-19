@@ -19,5 +19,8 @@ pub use matcher::*;
 mod token_creator;
 pub use token_creator::*;
 
+mod token_matcher;
+pub use token_matcher::*;
+
 mod token_type;
 pub use token_type::*;

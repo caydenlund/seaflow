@@ -10,24 +10,24 @@
 //! ```
 //! # use sea_lex::*;
 //! #[derive(Debug, Clone, PartialEq, Eq)]
-//! enum Token {
+//! enum MyToken {
 //!     WithContents(String),
 //!     Static,
 //! }
-//! impl TokenType for Token {
+//! impl TokenType for MyToken {
 //!     fn matchers() -> Vec<Matcher<Self>> { Vec::new() }
 //! }
 //!
 //! // Create from a cloneable value
-//! let creator = TokenCreator::from(Token::Static);
-//! assert_eq!(creator.create("..."), Some(Token::Static));
+//! let creator = TokenCreator::from(MyToken::Static);
+//! assert_eq!(creator.create("..."), Some(MyToken::Static));
 //!
 //! // Create via transformation function
-//! let creator = TokenCreator::Fn(Box::new(|s| Token::WithContents(s.to_string().to_uppercase())));
-//! assert_eq!(creator.create("test"), Some(Token::WithContents("TEST".to_string())));
+//! let creator = TokenCreator::Fn(Box::new(|s| MyToken::WithContents(s.to_string().to_uppercase())));
+//! assert_eq!(creator.create("test"), Some(MyToken::WithContents("TEST".to_string())));
 //!
 //! // No token creation
-//! let creator = TokenCreator::<Token>::None;
+//! let creator = TokenCreator::<MyToken>::None;
 //! assert_eq!(creator.create("anything"), None);
 //! ```
 

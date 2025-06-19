@@ -5,8 +5,7 @@
 //! - The ability to generate a [`Lexer`] from token definitions
 //! - A way to specify token matching rules with priority ordering
 
-use crate::Lexer;
-use crate::Matcher;
+use crate::{Lexer, TokenCreator, TokenMatcher};
 
 /// Provides a method to create a new [`Lexer`] for a language definition.
 ///
@@ -32,24 +31,22 @@ use crate::Matcher;
 ///     Minus,
 /// }
 /// impl TokenType for EquationToken {
-///     fn matchers() -> Vec<Matcher<Self>> {
+///     fn matchers() -> Vec<(TokenCreator<Self>, TokenMatcher)> {
 ///         vec![
 ///             (
 ///                 TokenCreator::Fn(Box::new(|c| Self::Integer(c.parse().unwrap()))),
-///                 Regex::new(r"^\d+").unwrap(),
-///             )
-///                 .into(),
+///                 Regex::new(r"^\d+").unwrap().into(),
+///             ),
 ///             (
 ///                 TokenCreator::Fn(Box::new(|c| Self::Identifier(c.to_string()))),
-///                 Regex::new(r"^[a-zA-Z_]+").unwrap(),
-///             )
-///                 .into(),
-///             (Self::LParen, "(").into(),
-///             (Self::RParen, ")").into(),
-///             (Self::Asterisk, "*").into(),
-///             (Self::Slash, "/").into(),
-///             (Self::Plus, "+").into(),
-///             (Self::Minus, "-").into(),
+///                 Regex::new(r"^[a-zA-Z_]+").unwrap().into(),
+///             ),
+///             (Self::LParen.into(), "(".into()),
+///             (Self::RParen.into(), ")".into()),
+///             (Self::Asterisk.into(), "*".into()),
+///             (Self::Slash.into(), "/".into()),
+///             (Self::Plus.into(), "+".into()),
+///             (Self::Minus.into(), "-".into()),
 ///         ]
 ///     }
 /// }
@@ -77,5 +74,5 @@ pub trait TokenType: Sized + Clone {
     ///
     /// # Returns
     /// This language's set of [`Matcher<Self>`], ordered by priority.
-    fn matchers() -> Vec<Matcher<Self>>;
+    fn matchers() -> Vec<(TokenCreator<Self>, TokenMatcher)>;
 }

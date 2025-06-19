@@ -1,4 +1,4 @@
-//! sea-lex - seaflow lexer component
+//! sea-lex - Seaflow lexer component
 
 #![warn(
     clippy::all,
@@ -12,9 +12,6 @@
 
 mod lexer;
 pub use lexer::*;
-
-mod matcher;
-pub use matcher::*;
 
 mod token_creator;
 pub use token_creator::*;

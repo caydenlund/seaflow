@@ -15,7 +15,7 @@
 //!     Static,
 //! }
 //! impl TokenType for MyToken {
-//!     fn matchers() -> Vec<Matcher<Self>> { Vec::new() }
+//!     fn matchers() -> Vec<(TokenCreator<Self>, TokenMatcher)> { Vec::new() }
 //! }
 //!
 //! // Create from a cloneable value

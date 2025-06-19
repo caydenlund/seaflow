@@ -18,23 +18,23 @@
 //!     Minus,
 //! }
 //! impl TokenType for EquationToken {
-//!     fn matchers() -> Vec<Matcher<Self>> {
+//!     fn matchers() -> Vec<(TokenCreator<Self>, TokenMatcher)> {
 //!         vec![
 //!             (
-//!                 TokenCreator::Fn(Box::new(|c| Self::Integer(c.parse().unwrap()))),
-//!                 Regex::new(r"^\d+").unwrap(),
-//!             )
-//!                 .into(),
-//!             (Self::Asterisk, "*").into(),
-//!             (Self::Slash, "/").into(),
-//!             (Self::Plus, "+").into(),
-//!             (Self::Minus, "-").into(),
+//!                 TokenCreator::Fn(Box::new(|c| Self::Integer(c.parse().unwrap()))).into(),
+//!                 Regex::new(r"^\d+").unwrap().into(),
+//!             ),
+//!             (Self::Asterisk.into(), "*".into()),
+//!             (Self::Slash.into(), "/".into()),
+//!             (Self::Plus.into(), "+".into()),
+//!             (Self::Minus.into(), "-".into()),
+//!             (TokenCreator::None, " ".into()), // skip spaces
 //!         ]
 //!     }
 //! }
 //!
 //! let lexer = EquationToken::lexer();
-//! let tokens = lexer.lex("1+23-45*6/789");
+//! let tokens = lexer.lex("1 + 23 - 45 * 6 / 789");
 //! let expected = vec![
 //!     EquationToken::Integer(1),
 //!     EquationToken::Plus,
@@ -49,7 +49,8 @@
 //! assert_eq!(tokens, expected);
 //! ```
 
-use crate::Matcher;
+use crate::TokenCreator;
+use crate::TokenMatcher;
 use crate::TokenType;
 
 /// A lexer that converts source text into tokens of type `T`.
@@ -60,10 +61,11 @@ pub struct Lexer<T>
 where
     T: TokenType,
 {
-    /// Collection of matchers used to identify tokens in the source text.
+    /// Collection of token matchers and creators used to identify tokens.
+    ///
     /// Matchers are applied in order, with the first successful match
-    /// determining the next token.
-    pub(crate) matchers: Vec<Matcher<T>>,
+    /// determining the token to construct.
+    pub(crate) matchers: Vec<(TokenCreator<T>, TokenMatcher)>,
 }
 
 impl<T> Lexer<T>

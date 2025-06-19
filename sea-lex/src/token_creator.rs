@@ -100,3 +100,101 @@ where
         Self::Cloned(token)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::TokenMatcher;
+
+    use super::*;
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    enum TestToken {
+        Static,
+        Number(i64),
+        Text(String),
+    }
+
+    impl TokenType for TestToken {
+        fn matchers() -> Vec<(TokenCreator<Self>, TokenMatcher)> {
+            Vec::new()
+        }
+    }
+
+    #[test]
+    fn test_cloned_variant() {
+        let creator = TokenCreator::Cloned(TestToken::Static);
+        assert_eq!(creator.create("anything"), Some(TestToken::Static));
+
+        let num_creator = TokenCreator::Cloned(TestToken::Number(42));
+        assert_eq!(num_creator.create("ignored"), Some(TestToken::Number(42)));
+    }
+
+    #[test]
+    fn test_fn_variant() {
+        let creator = TokenCreator::Fn(Box::new(|s| TestToken::Number(s.parse().unwrap())));
+
+        assert_eq!(creator.create("123"), Some(TestToken::Number(123)));
+        assert_eq!(creator.create("0"), Some(TestToken::Number(0)));
+    }
+
+    #[test]
+    fn test_fn_variant_with_string() {
+        let creator = TokenCreator::Fn(Box::new(|s| TestToken::Text(s.to_uppercase())));
+
+        assert_eq!(
+            creator.create("hello"),
+            Some(TestToken::Text("HELLO".to_string()))
+        );
+        assert_eq!(
+            creator.create("world"),
+            Some(TestToken::Text("WORLD".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_none_variant() {
+        let creator = TokenCreator::<TestToken>::None;
+        assert_eq!(creator.create("anything"), None);
+        assert_eq!(creator.create(""), None);
+    }
+
+    #[test]
+    fn test_from_impl() {
+        let creator: TokenCreator<TestToken> = TestToken::Static.into();
+        assert_eq!(creator.create(""), Some(TestToken::Static));
+
+        let creator: TokenCreator<TestToken> = TestToken::Number(99).into();
+        assert_eq!(creator.create("ignored"), Some(TestToken::Number(99)));
+    }
+
+    #[test]
+    fn test_cloned_variant_with_multiple_calls() {
+        let creator = TokenCreator::Cloned(TestToken::Static);
+        assert_eq!(creator.create("first"), Some(TestToken::Static));
+        assert_eq!(creator.create("second"), Some(TestToken::Static));
+        assert_eq!(creator.create("third"), Some(TestToken::Static));
+    }
+
+    #[test]
+    fn test_fn_variant_with_different_inputs() {
+        let creator = TokenCreator::Fn(Box::new(|s| TestToken::Text(format!("processed: {}", s))));
+
+        assert_eq!(
+            creator.create("input1"),
+            Some(TestToken::Text("processed: input1".to_string()))
+        );
+        assert_eq!(
+            creator.create("input2"),
+            Some(TestToken::Text("processed: input2".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_empty_string_input() {
+        let fn_creator = TokenCreator::Fn(Box::new(|s| TestToken::Text(s.to_string())));
+        assert_eq!(fn_creator.create(""), Some(TestToken::Text("".to_string())));
+
+        let cloned_creator = TokenCreator::Cloned(TestToken::Static);
+        assert_eq!(cloned_creator.create(""), Some(TestToken::Static));
+    }
+}

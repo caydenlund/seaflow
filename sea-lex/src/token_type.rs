@@ -76,3 +76,122 @@ pub trait TokenType: Sized + Clone {
     /// This language's set of [`Matcher<Self>`], ordered by priority.
     fn matchers() -> Vec<(TokenCreator<Self>, TokenMatcher)>;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{TokenCreator, TokenMatcher};
+    use regex::Regex;
+
+    // Define a test token type
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    enum TestToken {
+        Number(i64),
+        Word(String),
+        Plus,
+        Minus,
+    }
+
+    impl TokenType for TestToken {
+        fn matchers() -> Vec<(TokenCreator<Self>, TokenMatcher)> {
+            vec![
+                (
+                    TokenCreator::Fn(Box::new(|s| TestToken::Number(s.parse().unwrap()))),
+                    Regex::new(r"^\d+").unwrap().into(),
+                ),
+                (
+                    TokenCreator::Fn(Box::new(|s| TestToken::Word(s.to_string()))),
+                    Regex::new(r"^[a-zA-Z]+").unwrap().into(),
+                ),
+                (TestToken::Plus.into(), "+".into()),
+                (TestToken::Minus.into(), "-".into()),
+                (TokenCreator::None, Regex::new(r"^\s+").unwrap().into()),
+            ]
+        }
+    }
+
+    #[test]
+    fn test_lexer_generation() {
+        let lexer = TestToken::lexer();
+        assert_eq!(lexer.matchers.len(), 5);
+    }
+
+    #[test]
+    fn test_matcher_priority_order() {
+        let matchers = TestToken::matchers();
+
+        // Verify order matches our definition
+        match &matchers[0].1 {
+            TokenMatcher::Regex(re) => assert_eq!(re.as_str(), r"^\d+"),
+            _ => panic!("First matcher should be number regex"),
+        }
+
+        match &matchers[1].1 {
+            TokenMatcher::Regex(re) => assert_eq!(re.as_str(), r"^[a-zA-Z]+"),
+            _ => panic!("Second matcher should be word regex"),
+        }
+
+        match &matchers[2].1 {
+            TokenMatcher::Literal(s) => assert_eq!(s, "+"),
+            _ => panic!("Third matcher should be plus literal"),
+        }
+    }
+
+    #[test]
+    fn test_token_creation_via_matchers() {
+        let lexer = TestToken::lexer();
+        let tokens = lexer.lex("123 + abc - 42").unwrap();
+
+        assert_eq!(tokens.len(), 5);
+        assert_eq!(tokens[0].typ, TestToken::Number(123));
+        assert_eq!(tokens[1].typ, TestToken::Plus);
+        assert_eq!(tokens[2].typ, TestToken::Word("abc".to_string()));
+        assert_eq!(tokens[3].typ, TestToken::Minus);
+        assert_eq!(tokens[4].typ, TestToken::Number(42));
+    }
+
+    #[test]
+    fn test_whitespace_skipping() {
+        let lexer = TestToken::lexer();
+        let tokens = lexer.lex("  123  \t\n+  ").unwrap();
+
+        assert_eq!(tokens.len(), 2);
+        assert_eq!(tokens[0].typ, TestToken::Number(123));
+        assert_eq!(tokens[1].typ, TestToken::Plus);
+    }
+
+    #[test]
+    fn test_mixed_content_lexing() {
+        let lexer = TestToken::lexer();
+        let tokens = lexer.lex("42apples+3bananas-7oranges").unwrap();
+
+        assert_eq!(tokens.len(), 8);
+        assert_eq!(tokens[0].typ, TestToken::Number(42));
+        assert_eq!(tokens[1].typ, TestToken::Word("apples".to_string()));
+        assert_eq!(tokens[2].typ, TestToken::Plus);
+        assert_eq!(tokens[3].typ, TestToken::Number(3));
+        assert_eq!(tokens[4].typ, TestToken::Word("bananas".to_string()));
+        assert_eq!(tokens[5].typ, TestToken::Minus);
+        assert_eq!(tokens[6].typ, TestToken::Number(7));
+        assert_eq!(tokens[7].typ, TestToken::Word("oranges".to_string()));
+    }
+
+    #[test]
+    fn test_lexer_error_on_unmatched() {
+        let lexer = TestToken::lexer();
+        let result = lexer.lex("123 $ 456");
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.position, 4);
+        assert_eq!(err.unmatched, '$');
+    }
+
+    #[test]
+    fn test_token_type_implementation() {
+        let matchers = TestToken::matchers();
+        assert!(matches!(matchers[0].0, TokenCreator::Fn(_)));
+        assert!(matches!(matchers[2].0, TokenCreator::Cloned(_)));
+        assert!(matches!(matchers[4].0, TokenCreator::None));
+    }
+}

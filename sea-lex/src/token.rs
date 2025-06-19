@@ -66,3 +66,94 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{Token, TokenCreator, TokenMatcher, TokenType};
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    enum TestToken {
+        Number,
+        Identifier,
+        Plus,
+        Minus,
+    }
+
+    impl TokenType for TestToken {
+        fn matchers() -> Vec<(TokenCreator<Self>, TokenMatcher)> {
+            Vec::new() // Not needed for token tests
+        }
+    }
+
+    #[test]
+    fn test_token_creation() {
+        let token = Token::new(TestToken::Number, "42", 0);
+        assert_eq!(token.typ, TestToken::Number);
+        assert_eq!(token.contents, "42");
+        assert_eq!(token.position, 0);
+    }
+
+    #[test]
+    fn test_token_with_string_contents() {
+        let token = Token::new(TestToken::Identifier, "foo_bar", 10);
+        assert_eq!(token.typ, TestToken::Identifier);
+        assert_eq!(token.contents, "foo_bar");
+        assert_eq!(token.position, 10);
+    }
+
+    #[test]
+    fn test_token_with_different_positions() {
+        let token1 = Token::new(TestToken::Plus, "+", 5);
+        let token2 = Token::new(TestToken::Plus, "+", 10);
+
+        assert_eq!(token1.typ, token2.typ);
+        assert_eq!(token1.contents, token2.contents);
+        assert_ne!(token1.position, token2.position);
+    }
+
+    #[test]
+    fn test_token_equality() {
+        let token1 = Token::new(TestToken::Minus, "-", 3);
+        let token2 = Token::new(TestToken::Minus, "-", 3);
+        let token3 = Token::new(TestToken::Minus, "--", 3);
+        let token4 = Token::new(TestToken::Plus, "-", 3);
+
+        assert_eq!(token1, token2);
+        assert_ne!(token1, token3);
+        assert_ne!(token1, token4);
+    }
+
+    #[test]
+    fn test_token_with_string_conversion() {
+        let token = Token::new(TestToken::Identifier, String::from("variable"), 7);
+        assert_eq!(token.contents, "variable");
+    }
+
+    #[test]
+    fn test_token_with_empty_contents() {
+        let token = Token::new(TestToken::Number, "", 0);
+        assert_eq!(token.contents, "");
+    }
+
+    #[test]
+    fn test_token_with_large_position() {
+        let token = Token::new(TestToken::Plus, "+", usize::MAX);
+        assert_eq!(token.position, usize::MAX);
+    }
+
+    #[test]
+    fn test_token_clone() {
+        let token1 = Token::new(TestToken::Identifier, "xyz", 15);
+        let token2 = token1.clone();
+        assert_eq!(token1, token2);
+    }
+
+    #[test]
+    fn test_token_debug_format() {
+        let token = Token::new(TestToken::Number, "123", 5);
+        let debug_output = format!("{:?}", token);
+        assert!(debug_output.contains("Number"));
+        assert!(debug_output.contains("123"));
+        assert!(debug_output.contains("5"));
+    }
+}

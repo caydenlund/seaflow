@@ -16,6 +16,9 @@ pub use error::*;
 mod lexer;
 pub use lexer::*;
 
+mod token;
+pub use token::*;
+
 mod token_creator;
 pub use token_creator::*;
 

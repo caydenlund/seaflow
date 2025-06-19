@@ -10,6 +10,9 @@
     rustdoc::all
 )]
 
+mod error;
+pub use error::*;
+
 mod lexer;
 pub use lexer::*;
 

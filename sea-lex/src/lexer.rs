@@ -46,9 +46,10 @@
 //!     EquationToken::Slash,
 //!     EquationToken::Integer(789),
 //! ];
-//! assert_eq!(tokens, expected);
+//! assert_eq!(tokens, Ok(expected));
 //! ```
 
+use crate::LexerError;
 use crate::TokenCreator;
 use crate::TokenMatcher;
 use crate::TokenType;
@@ -78,11 +79,41 @@ where
     /// * `source` - The input string to be tokenized.
     ///
     /// # Returns
-    /// A vector of tokens parsed from the source text.
-    #[must_use]
-    pub fn lex(&self, source: &str) -> Vec<T> {
+    /// - `Ok(Vec<T>)` with the parsed tokens on success.
+    /// - `Err(LexerError)` if lexing fails.
+    ///
+    /// # Errors
+    /// Returns an error if unmatched text (an illegal character sequence) is encountered.
+    ///
+    /// # Behavior
+    /// - Processes the input string from start to end.
+    /// - For each position, tries matchers in order until a match is found.
+    /// - Stops when no more tokens can be matched.
+    pub fn lex(&self, source: &str) -> Result<Vec<T>, LexerError> {
         let mut tokens = Vec::new();
-        todo!();
-        tokens
+        let mut remaining = source;
+        let mut position = 0;
+
+        'outer: while !remaining.is_empty() {
+            for (creator, matcher) in &self.matchers {
+                if let Some(len) = matcher.matches(remaining) {
+                    let matched_text = &remaining[..len];
+                    remaining = &remaining[len..];
+                    position += len;
+
+                    if let Some(token) = creator.create(matched_text) {
+                        tokens.push(token);
+                    }
+                    continue 'outer;
+                }
+            }
+
+            return Err(LexerError {
+                position,
+                unmatched: remaining.chars().next().unwrap_or_default(),
+            });
+        }
+
+        Ok(tokens)
     }
 }

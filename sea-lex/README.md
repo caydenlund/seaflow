@@ -24,42 +24,42 @@ This trait will make it possible to construct a new `Lexer` for this set of toke
 
 ```rust
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Token {
+pub enum EquationToken {
     Integer(i64),
-    Identifier(String),
-    LParen,
-    RParen,
     Asterisk,
     Slash,
     Plus,
     Minus,
 }
 
-impl TokenType for Token {
-    fn matchers() -> Vec<Matcher<Self>> {
+impl TokenType for EquationToken {
+    fn matchers() -> Vec<(TokenCreator<Self>, TokenMatcher)> {
         vec![
-            // Integer literals
             (
-                TokenCreator::Fn(Box::new(|c| Self::Integer(c.parse().unwrap()))),
-                Regex::new(r"^\d+").unwrap(),
-            )
-                .into(),
-            // Variable names
-            (
-                TokenCreator::Fn(Box::new(|c| Self::Identifier(c.to_string()))),
-                Regex::new(r"^[a-zA-Z_]+").unwrap(),
-            )
-                .into(),
-            // Punctuation
-            (Self::LParen, "(").into(),
-            (Self::RParen, ")").into(),
-            (Self::Asterisk, "*").into(),
-            (Self::Slash, "/").into(),
-            (Self::Plus, "+").into(),
-            (Self::Minus, "-").into(),
-            // Ignore whitespace
-            (TokenCreator::None, Regex::new(r"^\s+").unwrap()).into(),
+                TokenCreator::Fn(Box::new(|c| Self::Integer(c.parse().unwrap()))).into(),
+                Regex::new(r"^\d+").unwrap().into(),
+            ),
+            (Self::Asterisk.into(), "*".into()),
+            (Self::Slash.into(), "/".into()),
+            (Self::Plus.into(), "+".into()),
+            (Self::Minus.into(), "-".into()),
+            (TokenCreator::None, " ".into()), // skip spaces
         ]
     }
 }
+
+let lexer = EquationToken::lexer();
+let tokens = lexer.lex("1 + 23 - 45 * 6 / 789");
+let expected = vec![
+    Token::new(EquationToken::Integer(1), "1", 0),
+    Token::new(EquationToken::Plus, "+", 2),
+    Token::new(EquationToken::Integer(23), "23", 4),
+    Token::new(EquationToken::Minus, "-", 7),
+    Token::new(EquationToken::Integer(45), "45", 9),
+    Token::new(EquationToken::Asterisk, "*", 12),
+    Token::new(EquationToken::Integer(6), "6", 14),
+    Token::new(EquationToken::Slash, "/", 16),
+    Token::new(EquationToken::Integer(789), "789", 18),
+];
+assert_eq!(tokens, Ok(expected));
 ```

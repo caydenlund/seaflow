@@ -5,14 +5,19 @@ fn parse_int(s: &str) -> i64 {
     s.parse().unwrap()
 }
 
+/// Parser function for string tokens
+fn parse_string(s: &str) -> String {
+    s.to_string()
+}
+
 #[derive(Debug, Clone, PartialEq, Token)]
-#[token(skip = r"\s+")]  // Skip whitespace using regex
+#[skip(r"\s+")]  // Skip whitespace using regex
 enum KeyDistinctionToken {
     // REGEX PATTERNS: Use r"..." syntax
     #[token(r"\d+", parse_int)]
     RegexDigits(i64),       // Matches sequences of digits: 123, 456, etc.
     
-    #[token(r"[a-zA-Z]+", String::from)]
+    #[token(r"[a-zA-Z]+", parse_string)]
     RegexLetters(String),   // Matches sequences of letters: hello, WORLD, etc.
     
     // LITERAL PATTERNS: Use "..." syntax  
@@ -94,10 +99,10 @@ fn test_complex_pattern_combinations() {
 #[test]
 fn test_skip_pattern_distinction() {
     #[derive(Debug, Clone, PartialEq, Token)]
-    #[token(skip = r"\s+")]      // Regex: skip any whitespace
-    #[token(skip = "//")]        // Literal: skip exactly "//"
+    #[skip(r"\s+")]      // Regex: skip any whitespace
+    #[skip("//")]        // Literal: skip exactly "//"
     enum SkipTestToken {
-        #[token(r"\w+", String::from)]
+        #[token(r"\w+", parse_string)]
         Word(String),
     }
     

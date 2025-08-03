@@ -1,10 +1,8 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{
-    parse_macro_input, Attribute, Data, DeriveInput, Fields, Ident, Meta, Variant,
-};
+use syn::{parse_macro_input, Attribute, Data, DeriveInput, Fields, Ident, Meta, Variant};
 
-#[proc_macro_derive(Token, attributes(token))]
+#[proc_macro_derive(Token, attributes(token, skip))]
 pub fn derive_token(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
@@ -38,15 +36,48 @@ pub fn derive_token(input: TokenStream) -> TokenStream {
                 }
             }
             TokenCreatorType::Function(variant_name, func_name) => {
-                let func_path: syn::Path = syn::parse_str(func_name).unwrap();
-                quote! {
-                    (::sea_lex::TokenCreator::Function(|s| Self::#variant_name(#func_path(s))), #pattern, #is_regex)
+                // Try to parse as a path first, if that fails, parse as an expression
+                // Handle special case for String::from
+                if func_name == "String::from" {
+                    quote! {
+                        (::sea_lex::TokenCreator::Parser(std::sync::Arc::new(move |text, _position| {
+                            Ok(Self::#variant_name(String::from(text)))
+                        })), #pattern, #is_regex)
+                    }
+                } else if let Ok(func_path) = syn::parse_str::<syn::Path>(func_name) {
+                    quote! {
+                        (::sea_lex::TokenCreator::Parser(std::sync::Arc::new(move |text, position| {
+                            use ::sea_lex::TokenParser;
+                            let parser = #func_path;
+                            parser.parse(text, position).map(Self::#variant_name)
+                        })), #pattern, #is_regex)
+                    }
+                } else if let Ok(func_expr) = syn::parse_str::<syn::Expr>(func_name) {
+                    quote! {
+                        (::sea_lex::TokenCreator::Parser(std::sync::Arc::new(move |text, position| {
+                            use ::sea_lex::TokenParser;
+                            let parser = #func_expr;
+                            parser.parse(text, position).map(Self::#variant_name)
+                        })), #pattern, #is_regex)
+                    }
+                } else {
+                    // Fallback: treat as raw tokens
+                    let func_tokens: proc_macro2::TokenStream = func_name.parse().unwrap();
+                    quote! {
+                        (::sea_lex::TokenCreator::Parser(std::sync::Arc::new(move |text, position| {
+                            use ::sea_lex::TokenParser;
+                            let parser = #func_tokens;
+                            parser.parse(text, position).map(Self::#variant_name)
+                        })), #pattern, #is_regex)
+                    }
                 }
             }
         }
     });
 
-    let skip_pattern_strs = skip_patterns.iter().map(|(pattern, is_regex)| quote! { (#pattern, #is_regex) });
+    let skip_pattern_strs = skip_patterns
+        .iter()
+        .map(|(pattern, is_regex)| quote! { (#pattern, #is_regex) });
 
     let expanded = quote! {
         impl #impl_generics #enum_name #ty_generics #where_clause {
@@ -60,6 +91,11 @@ pub fn derive_token(input: TokenStream) -> TokenStream {
                 ];
                 ::sea_lex::Lexer::new(input, matchers, skip_patterns).unwrap()
             }
+            
+            /// Create a tokenizing iterator for this token type
+            pub fn tokenize(input: impl Into<String>) -> ::sea_lex::Lexer<Self> {
+                Self::lexer(input)
+            }
         }
     };
 
@@ -69,7 +105,7 @@ pub fn derive_token(input: TokenStream) -> TokenStream {
 #[derive(Debug)]
 enum TokenCreatorType {
     Unit(Ident),
-    Function(Ident, String), // Changed to String to handle paths like String::from
+    Function(Ident, String),
 }
 
 #[derive(Debug)]
@@ -83,36 +119,41 @@ fn extract_skip_patterns(attrs: &[Attribute]) -> Vec<(String, bool)> {
     let mut skip_patterns = Vec::new();
 
     for attr in attrs {
-        if attr.path().is_ident("token") {
+        // Handle #[skip(pattern)] syntax only
+        if attr.path().is_ident("skip") {
             if let Meta::List(meta_list) = &attr.meta {
-                // Simple approach: parse as string and extract skip patterns manually
                 let tokens_str = meta_list.tokens.to_string();
-                if tokens_str.contains("skip") {
-                    // Extract the string after "skip ="
-                    if let Some(start) = tokens_str.find("skip = ") {
-                        let remainder = &tokens_str[start + 7..];
-                        if let Some(end) = remainder.find(',').or_else(|| Some(remainder.len())) {
-                            let pattern_with_quotes = remainder[..end].trim();
-                            if pattern_with_quotes.starts_with("r\"") && pattern_with_quotes.ends_with('"') {
-                                // Raw string literal: r"pattern" - this is a regex
-                                let pattern = &pattern_with_quotes[2..pattern_with_quotes.len()-1];
-                                skip_patterns.push((pattern.to_string(), true));
-                            } else if pattern_with_quotes.starts_with('"') && pattern_with_quotes.ends_with('"') {
-                                // Regular string literal: "pattern" - this is a literal
-                                // Need to parse as a string literal to handle escapes properly
-                                if let Ok(lit) = syn::parse_str::<syn::LitStr>(pattern_with_quotes) {
-                                    skip_patterns.push((lit.value(), false));
-                                }
-                            }
-                        }
-                    }
+                let pattern_with_quotes = tokens_str.trim();
+                
+                if let Some((pattern, is_regex)) = parse_pattern_string(pattern_with_quotes) {
+                    skip_patterns.push((pattern, is_regex));
                 }
             }
         }
     }
-    
 
     skip_patterns
+}
+
+fn parse_pattern_string(pattern_with_quotes: &str) -> Option<(String, bool)> {
+    if pattern_with_quotes.starts_with("r\"")
+        && pattern_with_quotes.ends_with('"')
+    {
+        // Raw string literal: r"pattern" - this is a regex
+        let pattern = &pattern_with_quotes[2..pattern_with_quotes.len() - 1];
+        Some((pattern.to_string(), true))
+    } else if pattern_with_quotes.starts_with('"')
+        && pattern_with_quotes.ends_with('"')
+    {
+        // Regular string literal: "pattern" - this is a literal
+        if let Ok(lit) = syn::parse_str::<syn::LitStr>(pattern_with_quotes) {
+            Some((lit.value(), false))
+        } else {
+            None
+        }
+    } else {
+        None
+    }
 }
 
 fn extract_token_matcher(variant: &Variant) -> Option<TokenMatcherInfo> {
@@ -129,24 +170,25 @@ fn parse_token_attribute(attr: &Attribute, variant: &Variant) -> Option<TokenMat
         // Simple string parsing approach
         let tokens_str = meta_list.tokens.to_string();
         let parts: Vec<&str> = tokens_str.split(',').map(|s| s.trim()).collect();
-        
+
         match parts.len() {
             1 => {
                 // #[token("pattern")] or #[token(r"pattern")]
                 let pattern_with_quotes = parts[0].trim();
                 if pattern_with_quotes.starts_with("r\"") && pattern_with_quotes.ends_with('"') {
                     // Raw string literal: r"pattern" - this is a regex
-                    let pattern = &pattern_with_quotes[2..pattern_with_quotes.len()-1];
+                    let pattern = &pattern_with_quotes[2..pattern_with_quotes.len() - 1];
                     let creator = match &variant.fields {
                         Fields::Unit => TokenCreatorType::Unit(variant.ident.clone()),
                         _ => return None,
                     };
-                    return Some(TokenMatcherInfo { 
-                        pattern: pattern.to_string(), 
+                    return Some(TokenMatcherInfo {
+                        pattern: pattern.to_string(),
                         creator,
                         is_regex: true,
                     });
-                } else if pattern_with_quotes.starts_with('"') && pattern_with_quotes.ends_with('"') {
+                } else if pattern_with_quotes.starts_with('"') && pattern_with_quotes.ends_with('"')
+                {
                     // Regular string literal: "pattern" - this is a literal
                     // Need to parse as a string literal to handle escapes properly
                     if let Ok(lit) = syn::parse_str::<syn::LitStr>(pattern_with_quotes) {
@@ -166,27 +208,30 @@ fn parse_token_attribute(attr: &Attribute, variant: &Variant) -> Option<TokenMat
                     return None;
                 }
             }
-            2 => {
+            _ if parts.len() >= 2 => {
                 // #[token("pattern", function)] or #[token(r"pattern", function)]
+                // Handle both simple functions and closures
                 let pattern_with_quotes = parts[0].trim();
-                let func_name_str = parts[1].trim();
-                let func_name = func_name_str.to_string();
-                
+                // Join all parts after the first comma to handle closures with commas
+                let func_parts: Vec<&str> = parts[1..].iter().map(|s| s.trim()).collect();
+                let func_name = func_parts.join(", ");
+
                 if pattern_with_quotes.starts_with("r\"") && pattern_with_quotes.ends_with('"') {
                     // Raw string literal: r"pattern" - this is a regex
-                    let pattern = &pattern_with_quotes[2..pattern_with_quotes.len()-1];
+                    let pattern = &pattern_with_quotes[2..pattern_with_quotes.len() - 1];
                     let creator = match &variant.fields {
                         Fields::Unnamed(_) => {
                             TokenCreatorType::Function(variant.ident.clone(), func_name)
                         }
                         _ => return None,
                     };
-                    return Some(TokenMatcherInfo { 
-                        pattern: pattern.to_string(), 
+                    return Some(TokenMatcherInfo {
+                        pattern: pattern.to_string(),
                         creator,
                         is_regex: true,
                     });
-                } else if pattern_with_quotes.starts_with('"') && pattern_with_quotes.ends_with('"') {
+                } else if pattern_with_quotes.starts_with('"') && pattern_with_quotes.ends_with('"')
+                {
                     // Regular string literal: "pattern" - this is a literal
                     // Need to parse as a string literal to handle escapes properly
                     if let Ok(lit) = syn::parse_str::<syn::LitStr>(pattern_with_quotes) {

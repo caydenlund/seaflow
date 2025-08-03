@@ -5,6 +5,10 @@ edition = "2021"
 authors = ["Cayden Lund <caydenlund@gmail.com>"]
 description = "Derive macros for sea-lex"
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/caydenlund/seaflow.git"
+readme = "../README.md"
+keywords = ["compiler", "derive", "lexer", "macro", "tokenization"]
+categories = ["development-tools::procedural-macro-helpers", "compilers", "parsing"]
 
 [lib]
 proc-macro = true

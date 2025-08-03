@@ -13,11 +13,12 @@
 mod error;
 mod lexer;
 mod token;
+mod token_parser;
 
 pub use error::*;
 pub use lexer::*;
 pub use token::*;
+pub use token_parser::*;
 
 #[cfg(feature = "derive")]
 pub use sea_lex_derive::Token;
-

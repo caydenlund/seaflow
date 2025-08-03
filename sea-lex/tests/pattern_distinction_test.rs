@@ -5,8 +5,13 @@ fn parse_int(s: &str) -> i64 {
     s.parse().unwrap()
 }
 
+/// Parser function for string tokens
+fn parse_string(s: &str) -> String {
+    s.to_string()
+}
+
 #[derive(Debug, Clone, PartialEq, Token)]
-#[token(skip = r"\s+")]  // Skip whitespace (regex)
+#[skip(r"\s+")]  // Skip whitespace (regex)
 enum PatternTestToken {
     // Put specific literals first to take precedence over general regex patterns
     #[token("\\d")]
@@ -37,10 +42,10 @@ enum PatternTestToken {
     #[token(r"\d+", parse_int)]
     Number(i64),
     
-    #[token(r"[a-zA-Z]+", String::from)]
+    #[token(r"[a-zA-Z]+", parse_string)]
     Word(String),
     
-    #[token(r"\w+", String::from)]
+    #[token(r"\w+", parse_string)]
     Identifier(String),
 }
 

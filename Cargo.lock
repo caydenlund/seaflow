@@ -80,8 +80,21 @@ version = "0.1.0"
 name = "sea-lex"
 version = "0.1.0"
 dependencies = [
+ "proc-macro2",
+ "quote",
  "regex",
+ "sea-lex-derive",
+ "syn",
  "thiserror",
+]
+
+[[package]]
+name = "sea-lex-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

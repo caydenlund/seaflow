@@ -11,19 +11,13 @@
 )]
 
 mod error;
-pub use error::*;
-
 mod lexer;
-pub use lexer::*;
-
 mod token;
+
+pub use error::*;
+pub use lexer::*;
 pub use token::*;
 
-mod token_creator;
-pub use token_creator::*;
+#[cfg(feature = "derive")]
+pub use sea_lex_derive::Token;
 
-mod token_matcher;
-pub use token_matcher::*;
-
-mod token_type;
-pub use token_type::*;

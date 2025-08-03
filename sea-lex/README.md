@@ -1,65 +1,225 @@
 # `sea-lex`
 
-SeaFlow lexer component.
+A derive-based lexer for the [SeaFlow](https://github.com/caydenlund/seaflow) compiler toolkit.
 
-Part of the [SeaFlow](https://github.com/caydenlund/seaflow) compiler toolkit.
+## Overview
 
-The lexer is one of the less-interesting components of the compiler, so most of my attention will be spent elsewhere.
-This means that it may be less efficient than other lexing crates, but because lexing is a small fraction of the overall work of the compiler, inefficiency is not a large concern here.
-I intend to come back to this and implement a state machine generator that will be much more efficient.
+`sea-lex` provides an ergonomic, derive-based API for building lexers.
+Define your tokens as an enum with attributes, and the derive macro generates a complete lexer implementation.
 
-## Design Overview
-
-Given a source program, the lexer identifies the most primitive building blocks ("tokens") that will be parsed into an Abstract Syntax Tree.
-These tokens include things like keywords, punctuation, and identifiers.
-
-The overall lexer is composed of pattern matchers, ordered by priority.
-Each pattern matcher will read from the source source program at a given position, and determine whether to emit a valid token type from that position.
-
-## API Overview
-
-Implement the `TokenType` trait for an `enum` of your token types by defining the ordered pattern matchers.
-Each pattern matcher is a pair of a `TokenCreator` and a regular or expression or string literal to match.
-This trait will make it possible to construct a new `Lexer` for this set of token types.
+## Quick Start
 
 ```rust
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum EquationToken {
-    Integer(i64),
-    Asterisk,
-    Slash,
+use sea_lex::Token;
+
+#[derive(Debug, Clone, PartialEq, Token)]
+#[token(skip = r"\s+")]  // Skip whitespace
+enum MathToken {
+    #[token(r"\d+", parse_int)]
+    Number(i64),
+    
+    #[token("+")]
     Plus,
+    
+    #[token("-")]
     Minus,
+    
+    #[token("*")]
+    Multiply,
+    
+    #[token("/")]
+    Divide,
+    
+    #[token("(")]
+    LeftParen,
+    
+    #[token(")")]
+    RightParen,
 }
 
-impl TokenType for EquationToken {
-    fn matchers() -> Vec<(TokenCreator<Self>, TokenMatcher)> {
-        vec![
-            (
-                TokenCreator::Fn(Box::new(|c| Self::Integer(c.parse().unwrap()))).into(),
-                Regex::new(r"^\d+").unwrap().into(),
-            ),
-            (Self::Asterisk.into(), "*".into()),
-            (Self::Slash.into(), "/".into()),
-            (Self::Plus.into(), "+".into()),
-            (Self::Minus.into(), "-".into()),
-            (TokenCreator::None, " ".into()), // skip spaces
-        ]
+fn parse_int(s: &str) -> i64 {
+    s.parse().unwrap()
+}
+
+fn main() {
+    let mut lexer = MathToken::lexer("12 + 34 * (56 - 78)");
+    
+    while let Some(token) = lexer.next() {
+        println!("{:?}", token);
     }
 }
-
-let lexer = EquationToken::lexer();
-let tokens = lexer.lex("1 + 23 - 45 * 6 / 789");
-let expected = vec![
-    Token::new(EquationToken::Integer(1), "1", 0),
-    Token::new(EquationToken::Plus, "+", 2),
-    Token::new(EquationToken::Integer(23), "23", 4),
-    Token::new(EquationToken::Minus, "-", 7),
-    Token::new(EquationToken::Integer(45), "45", 9),
-    Token::new(EquationToken::Asterisk, "*", 12),
-    Token::new(EquationToken::Integer(6), "6", 14),
-    Token::new(EquationToken::Slash, "/", 16),
-    Token::new(EquationToken::Integer(789), "789", 18),
-];
-assert_eq!(tokens, Ok(expected));
 ```
+
+## Token Attributes
+
+### Pattern Types
+
+**Literal Patterns** - Use regular quoted strings `"pattern"`:
+```rust
+#[token("if")]           // Matches exactly "if"
+Keyword,
+
+#[token("+")]            // Matches exactly "+"
+Plus,
+```
+
+**Regex Patterns** - Use raw strings `r"pattern"`:
+```rust
+#[token(r"\d+")]         // Matches one or more digits
+Number,
+
+#[token(r"[a-zA-Z_]\w*")] // Matches identifiers
+Identifier,
+```
+
+### `#[token(pattern)]`
+Simple token without data:
+```rust
+#[token("if")]           // Literal
+Keyword,
+
+#[token(r"\d+")]         // Regex
+Number,
+```
+
+### `#[token(pattern, parser)]`
+Token with data, using a parser function:
+```rust
+#[token(r"\d+", parse_int)]
+Number(i64),
+
+#[token(r"[a-zA-Z_]\w*", String::from)]
+Identifier(String),
+
+#[token("true", |_| true)]
+Boolean(bool),
+```
+
+### `#[token(skip = pattern)]` (on enum)
+Automatically skips matched patterns:
+```rust
+#[derive(Token)]
+#[token(skip = r"\s+")]        // Skip whitespace (regex)
+#[token(skip = "//")]          // Skip literal "//" (literal)
+enum MyToken { ... }
+```
+
+You can specify multiple skip patterns:
+```rust
+#[derive(Token)]
+#[token(skip = r"\s+")]        // Skip whitespace
+#[token(skip = r"//[^\n]*")]   // Skip line comments
+#[token(skip = r"/\*[^*]*\*/")]// Skip block comments
+enum MyToken { ... }
+```
+
+## Advanced Examples
+
+### Programming Language Lexer
+```rust
+#[derive(Debug, Clone, PartialEq, Token)]
+#[token(skip = r"\s+")]
+#[token(skip = r"//[^\n]*")]
+enum LangToken {
+    // Literals
+    #[token(r"\d+", parse_int)]
+    Integer(i64),
+    
+    #[token(r#""([^"\\]|\\.)*""#, parse_string)]
+    String(String),
+    
+    // Keywords
+    #[token("fn")]
+    Function,
+    
+    #[token("let")]
+    Let,
+    
+    #[token("if")]
+    If,
+    
+    #[token("else")]
+    Else,
+    
+    // Identifiers
+    #[token(r"[a-zA-Z_][a-zA-Z0-9_]*")]
+    Identifier(String),
+    
+    // Operators
+    #[token("==")]
+    Equal,
+    
+    #[token("!=")]
+    NotEqual,
+    
+    #[token("=")]
+    Assign,
+    
+    // Punctuation
+    #[token("(")]
+    LeftParen,
+    
+    #[token(")")]
+    RightParen,
+    
+    #[token("{")]
+    LeftBrace,
+    
+    #[token("}")]
+    RightBrace,
+    
+    #[token(";")]
+    Semicolon,
+}
+
+fn parse_int(s: &str) -> i64 {
+    s.parse().unwrap()
+}
+
+fn parse_string(s: &str) -> String {
+    // Remove quotes and handle escape sequences
+    s[1..s.len()-1].replace(r#"\""#, r#"""#)
+}
+```
+
+## Token Information
+
+Each token includes position information:
+```rust
+let mut lexer = MyToken::lexer("hello world");
+while let Some(token) = lexer.next() {
+    println!("Token: {:?}", token.kind);
+    println!("Text: '{}'", token.text);
+    println!("Position: {}..{}", token.start, token.end);
+}
+```
+
+## Error Handling
+
+The lexer returns `LexError` for unrecognized input:
+```rust
+match MyToken::lexer("invalid @#$").collect() {
+    Ok(tokens) => println!("Tokens: {:?}", tokens),
+    Err(error) => println!("Lex error at position {}: {}", error.position, error.message),
+}
+```
+
+## Performance
+
+The derive macro generates efficient lexers using the following:
+- Compile-time regular expression compilation
+- Ordered pattern matching (longest match wins)
+- Zero-copy string slicing where possible
+- Minimal allocation for token values
+
+## Design Philosophy
+
+`sea-lex` prioritizes the following:
+1. **Ergonomics**—Minimal boilerplate, declarative syntax
+2. **Safety**—Compile-time validation, type-safe parsing
+3. **Performance**—Efficient generated code, minimal runtime overhead
+4. **Simplicity**—Clear, predictable behavior
+
+## License
+
+Apache-2.0 or MIT, at your option
